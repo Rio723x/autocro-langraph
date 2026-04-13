@@ -9,7 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@img-comparison-slider/react": "^8",
+    "@langchain/core": "^0.3",
+    "@langchain/langgraph": "^0.2",
     "next": "16.2.3",
+    "puppeteer": "^22",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -24,3 +28,4 @@
     "typescript": "^5"
   }
 }
+
