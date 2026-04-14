@@ -10,6 +10,48 @@ const NODE = "buildBannerAndScript";
 
 // ─── Step 11: Banner ─────────────────────────────────────────────────────────
 
+/**
+ * Returns true if the colour string is too light / transparent to read white text on.
+ * Catches: rgba(0,0,0,0), rgb(255,255,255), #fff, #ffffff, white, and any colour
+ * whose R+G+B components all exceed 200 (perceptually very bright).
+ */
+function isNearWhiteOrTransparent(color: string): boolean {
+  if (!color) return true;
+  const c = color.trim().toLowerCase();
+  if (c === "transparent" || c === "rgba(0, 0, 0, 0)" || c === "rgba(0,0,0,0)") return true;
+  if (c === "white" || c === "#fff" || c === "#ffffff") return true;
+  // Parse rgb/rgba values and check luminance.
+  const m = c.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)/);
+  if (m) {
+    const r = parseFloat(m[1]);
+    const g = parseFloat(m[2]);
+    const b = parseFloat(m[3]);
+    // Perceived luminance threshold — values above ~0.7 are considered near-white.
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    if (luminance > 0.72) return true;
+  }
+  return false;
+}
+
+/** Pick a usable banner background — never white/transparent. */
+function resolveBannerBg(styleProfile: StyleProfile | null): { bg: string; fg: string } {
+  const accent = styleProfile?.accentColor ?? "";
+  const textColor = styleProfile?.textColor ?? "";
+
+  if (!isNearWhiteOrTransparent(accent)) {
+    // Use the page accent colour — it's already dark/vivid.
+    return { bg: accent, fg: styleProfile?.accentTextColor ?? "#ffffff" };
+  }
+
+  // Accent is white/transparent. Try the body text colour as a dark fallback.
+  if (!isNearWhiteOrTransparent(textColor) && textColor) {
+    return { bg: textColor, fg: "#ffffff" };
+  }
+
+  // Ultimate fallback: charcoal banner, white text.
+  return { bg: "#111827", fg: "#ffffff" };
+}
+
 function buildBanner(
   state: PipelineState
 ): BannerData | null {
@@ -34,10 +76,12 @@ function buildBanner(
     return null;
   }
 
+  const { bg, fg } = resolveBannerBg(styleProfile);
+
   const banner: BannerData = {
     text,
-    backgroundColor: styleProfile?.accentColor ?? "#111827",
-    textColor: styleProfile?.accentTextColor ?? "#ffffff",
+    backgroundColor: bg,
+    textColor: fg,
   };
 
   log.info(NODE, "Banner built", {
@@ -90,25 +134,27 @@ function buildScript(
     node.innerText = banner.text;
     setStyles(node, {
       position: 'fixed',
-      top: '0',
+      // Pin to BOTTOM so the banner never overlaps the site's own navigation bar.
+      bottom: '0',
       left: '0',
       right: '0',
+      top: 'auto',
       zIndex: '2147483646',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: '54px',
       padding: '14px 24px',
-      background: banner.backgroundColor || styleProfile.accentColor || '#111827',
-      color: banner.textColor || styleProfile.accentTextColor || '#ffffff',
+      background: banner.backgroundColor || '#111827',
+      color: banner.textColor || '#ffffff',
       fontFamily: styleProfile.fontFamily || 'inherit',
       fontWeight: '700',
       letterSpacing: '0.01em',
-      boxShadow: styleProfile.shadow || '0 12px 28px rgba(15, 23, 42, 0.18)'
+      boxShadow: '0 -8px 24px rgba(0,0,0,0.18)'
     });
 
-    document.body.prepend(node);
-    document.body.style.paddingTop = node.offsetHeight + 'px';
+    document.body.appendChild(node);
+    document.body.style.paddingBottom = node.offsetHeight + 'px';
   }
 
   zones.forEach(function(z) {

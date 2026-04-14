@@ -1,26 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const RESULT_STORAGE_KEY = "troopod:last-result";
 const VIEWPORT_WIDTH = 1440;
-
-interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface Change {
-  zone: string;
-  original: string;
-  new: string;
-  selector: string;
-  overflow: boolean;
-  changed: boolean;
-  rect?: Rect;
-}
 
 interface Tile {
   src: string;
@@ -38,69 +21,63 @@ interface AdIntent {
 
 interface CompareResult {
   success: boolean;
-  changes: Change[];
-  images: {
-    before: string;
-    after: string;
-  };
-  full_page: {
-    before: Tile[];
-    after: Tile[];
-  };
+  changes: unknown[];
+  images: { before: string; after: string };
+  full_page: { before: Tile[]; after: Tile[] };
   ad_intent: AdIntent;
   banner: { text: string; backgroundColor: string; textColor: string } | null;
 }
 
 type Variant = "before" | "after";
 
-function tileOverlays(tile: Tile, changes: Change[]): Change[] {
-  return changes.filter((change) => {
-    const rect = change.rect;
-    if (!rect) {
-      return false;
-    }
-
-    return rect.y < tile.top + tile.height && rect.y + rect.height > tile.top;
-  });
-}
-
 interface WebsiteColumnProps {
   title: string;
   subtitle: string;
   tiles: Tile[];
-  changes: Change[];
   variant: Variant;
+  label: string;
 }
 
-function WebsiteColumn({ title, subtitle, tiles, changes, variant }: WebsiteColumnProps) {
+function WebsiteColumn({ title, subtitle, tiles, variant, label }: WebsiteColumnProps) {
+  const accentStyle: React.CSSProperties =
+    variant === "after"
+      ? { color: "var(--teal)", borderColor: "rgba(0,229,195,0.30)", background: "var(--teal-soft)" }
+      : { color: "var(--ink-muted)", borderColor: "var(--glass-border)", background: "var(--glass-1)" };
+
   return (
     <section className="compare-column">
       <div className="compare-column-head">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <span
+            style={{
+              display: "inline-block",
+              padding: "4px 12px",
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              border: "1px solid",
+              ...accentStyle,
+            }}
+          >
+            {label}
+          </span>
+        </div>
         <h2>{title}</h2>
         <p>{subtitle}</p>
       </div>
+
       <div className="website-frame">
         <div className="website-scroll">
           <div className="website-stack">
             {tiles.map((tile, index) => (
-              <div className="website-tile" key={`${variant}-${index}`} style={{ aspectRatio: `${tile.width} / ${tile.height}` }}>
-                <img alt={`${title} section ${index + 1}`} src={tile.src} />
-                {tileOverlays(tile, changes).map((change) => {
-                  const rect = change.rect as Rect;
-                  const left = `${(rect.x / VIEWPORT_WIDTH) * 100}%`;
-                  const top = `${((rect.y - tile.top) / tile.height) * 100}%`;
-
-                  return (
-                    <div
-                      className={`change-floater ${variant === "after" ? "is-after" : "is-before"}`}
-                      key={`${variant}-${tile.top}-${change.zone}`}
-                      style={{ left, top }}
-                    >
-                      <strong>{change.zone}</strong>
-                      <span>{variant === "after" ? change.new : change.original}</span>
-                    </div>
-                  );
-                })}
+              <div className="website-tile" key={`${variant}-${index}`}>
+                <img
+                  alt={`${title} — page section ${index + 1}`}
+                  src={tile.src}
+                  style={{ width: "100%", height: "auto", display: "block" }}
+                />
               </div>
             ))}
           </div>
@@ -115,31 +92,32 @@ export default function ComparePage() {
 
   useEffect(() => {
     const raw = window.localStorage.getItem(RESULT_STORAGE_KEY);
-    if (!raw) {
-      return;
-    }
-
-    try {
-      setResult(JSON.parse(raw) as CompareResult);
-    } catch {
-      setResult(null);
-    }
+    if (!raw) return;
+    try { setResult(JSON.parse(raw) as CompareResult); } catch { setResult(null); }
   }, []);
-
-  const changedZones = useMemo<Change[]>(
-    () => result?.changes?.filter((change) => change.changed && change.rect) ?? [],
-    [result]
-  );
 
   if (!result) {
     return (
       <main className="compare-shell">
-        <section className="compare-empty panel">
-          <h1>No comparison payload found</h1>
-          <p>
-            Run a Troopod personalisation first from the main page, then open this compare view
-            again.
+        <div
+          className="glow-orb"
+          style={{ width: 600, height: 600, top: -200, left: -200, background: "rgba(162,89,255,0.09)", position: "fixed", borderRadius: "50%", filter: "blur(80px)", pointerEvents: "none", zIndex: 0 }}
+        />
+        <section className="compare-empty glass-strong" style={{ position: "relative", zIndex: 1 }}>
+          <span className="eyebrow" style={{ marginBottom: 20 }}>No data</span>
+          <h1 style={{ fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.04em", marginBottom: 12 }}>
+            No comparison payload found
+          </h1>
+          <p className="compare-empty" style={{ margin: 0, padding: 0 }}>
+            Run an AutoCRO personalisation from the main page first, then come back here.
           </p>
+          <a
+            href="/"
+            className="primary-button"
+            style={{ display: "inline-flex", marginTop: 24, textDecoration: "none" }}
+          >
+            ← Back to AutoCRO
+          </a>
         </section>
       </main>
     );
@@ -147,16 +125,31 @@ export default function ComparePage() {
 
   return (
     <main className="compare-shell">
-      <section className="compare-hero">
+      {/* Glow orbs */}
+      <div className="glow-orb" style={{ width: 500, height: 500, top: -100, left: -150, background: "rgba(162,89,255,0.10)", position: "fixed", borderRadius: "50%", filter: "blur(80px)", pointerEvents: "none", zIndex: 0 }} />
+      <div className="glow-orb" style={{ width: 360, height: 360, top: 200, right: -80, background: "rgba(232,61,77,0.09)", position: "fixed", borderRadius: "50%", filter: "blur(80px)", pointerEvents: "none", zIndex: 0 }} />
+
+      {/* Hero */}
+      <section className="compare-hero" style={{ position: "relative", zIndex: 1 }}>
         <div>
-          <span className="eyebrow">Full-Page Compare</span>
-          <h1>Original and personalised website views, stacked and scrollable.</h1>
-          <p>
-            Each column behaves like a website window. Floaters mark the grounded text changes
-            captured from the live DOM.
+          <span className="eyebrow" style={{ marginBottom: 16, display: "inline-flex" }}>Full-Page Compare</span>
+          <h1 className="compare-hero">
+            See exactly what<br />
+            <span style={{
+              background: "linear-gradient(90deg, var(--accent), var(--accent-2))",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}>changed — and why.</span>
+          </h1>
+          <p style={{ marginTop: 8 }}>
+            Scroll each column like a real website. The left shows the original landing page,
+            the right shows AutoCRO's personalised version — aligned to your ad's message.
           </p>
         </div>
-        <div className="compare-summary panel">
+
+        {/* Summary panel */}
+        <div className="glass-strong compare-summary" style={{ position: "relative", zIndex: 1 }}>
           <div className="compare-summary-item">
             <strong>Offer Type</strong>
             <span>{result.ad_intent.offer_type || "none"}</span>
@@ -171,21 +164,28 @@ export default function ComparePage() {
           </div>
           <div className="compare-summary-item">
             <strong>Key Messages</strong>
-            <span>{result.ad_intent.key_messages.join(" · ") || "None detected"}</span>
+            <span>{result.ad_intent.key_messages.join(" · ") || "—"}</span>
           </div>
+          {result.banner && (
+            <div className="compare-summary-item">
+              <strong>Banner Injected</strong>
+              <span style={{ color: "var(--teal)" }}>{result.banner.text.slice(0, 60)}</span>
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="compare-grid">
+      {/* Main compare grid */}
+      <section className="compare-grid" style={{ position: "relative", zIndex: 1 }}>
         <WebsiteColumn
-          changes={changedZones}
-          subtitle="Captured before injection"
+          label="Original"
+          subtitle="Captured before any changes"
           tiles={result.full_page.before}
           title="Original Website"
           variant="before"
         />
         <WebsiteColumn
-          changes={changedZones}
+          label="Personalised"
           subtitle="Captured after deterministic text and UI updates"
           tiles={result.full_page.after}
           title="Personalised Website"
