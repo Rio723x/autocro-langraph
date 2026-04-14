@@ -12,10 +12,10 @@ export const OUTPUT_IMAGE_ROUTES = {
 } as const;
 
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
-export const OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
+export const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL;
 
 export const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
-export const OLLAMA_MODEL = "gemma4:e4b";
+export const OLLAMA_MODEL = process.env.OLLAMA_MODEL;
 
 export const EMPTY_AD_JSON: AdJson = Object.freeze({
   target_audience: "",
