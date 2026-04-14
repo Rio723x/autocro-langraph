@@ -5,7 +5,8 @@
  * Runs in parallel with Steps 4–6 (browser pipeline). */
 import fs from "node:fs/promises";
 import type { PipelineState, AdJson } from "../types";
-import { EMPTY_AD_JSON, OLLAMA_BASE_URL, OLLAMA_MODEL } from "../constants";
+import { EMPTY_AD_JSON } from "../constants";
+import { llmCall } from "../llm";
 import { log, elapsed } from "../logger";
 
 const NODE = "extractAd";
@@ -44,35 +45,24 @@ export async function extractAd(
 
   const imageBuffer = await fs.readFile(state.adFilePath);
   const base64Image = imageBuffer.toString("base64");
-  log.info(NODE, `File read: ${(imageBuffer.byteLength / 1024).toFixed(1)} KB, sending to Ollama (${OLLAMA_MODEL})…`);
+  log.info(NODE, `File read: ${(imageBuffer.byteLength / 1024).toFixed(1)} KB, sending to LLM…`);
 
   let responseText = "";
 
   try {
-    log.info(NODE, `POST ${OLLAMA_BASE_URL}/api/generate`);
-    const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        system: SYSTEM_PROMPT,
-        prompt: USER_PROMPT,
-        images: [base64Image],
-        stream: false,
-      }),
+    log.info(NODE, `Requesting LLM completion…`);
+    responseText = await llmCall({
+      system: SYSTEM_PROMPT,
+      prompt: USER_PROMPT,
+      images: [base64Image],
+    
     });
 
-    if (!res.ok) {
-      throw new Error(`Ollama responded with ${res.status}`);
-    }
-
-    const data = (await res.json()) as { response?: string };
-    responseText = String(data.response ?? "").trim();
-    log.info(NODE, `Ollama response received in ${elapsed(t)}`, {
+    log.info(NODE, `LLM response received in ${elapsed(t)}`, {
       preview: responseText.slice(0, 120) + (responseText.length > 120 ? "…" : ""),
     });
   } catch (error) {
-    log.warn(NODE, `Ollama request failed — using empty intent: ${(error as Error).message}`);
+    log.warn(NODE, `LLM request failed — using empty intent: ${(error as Error).message}`);
     return { adJson: { ...EMPTY_AD_JSON } };
   }
 

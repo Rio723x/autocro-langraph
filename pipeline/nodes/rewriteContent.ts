@@ -2,7 +2,7 @@
  * enriched with deterministic rules derived from the intent schema so the LLM
  * receives explicit instructions rather than having to infer them. */
 import type { PipelineState, Zone, AdJson } from "../types";
-import { OLLAMA_BASE_URL, OLLAMA_MODEL } from "../constants";
+import { llmCall } from "../llm";
 import { log, elapsed } from "../logger";
 
 const NODE = "rewriteContent";
@@ -106,7 +106,7 @@ export async function rewriteContent(
   }
 
   const prompt = buildPrompt(adJson, zones);
-  log.info(NODE, `Built prompt (${prompt.length} chars) — sending to Ollama (${OLLAMA_MODEL})…`);
+  log.info(NODE, `Built prompt (${prompt.length} chars) — sending to LLM…`);
 
   const zoneProperties: Record<string, { type: "string" }> = {};
   zones.forEach(z => {
@@ -129,34 +129,19 @@ export async function rewriteContent(
   let responseText = "";
 
   try {
-    log.info(NODE, `POST ${OLLAMA_BASE_URL}/api/generate`);
-    const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        system: `You are a world-class Conversion Rate Optimization (CRO) copywriter. 
-Your task is to rewrite specific text zones on a landing page so they seamlessly align with the user intent driven by an incoming ad campaign. 
-Return ONLY valid JSON according to the requested schema. Provide a rationale string explaining your strategy, then the rewritten text for each zone.`,
-        prompt,
-        format: formatSchema,
-        stream: false,
-        options: { temperature: 0.6, top_p: 0.9 },
-      }),
+    log.info(NODE, `Requesting LLM completion…`);
+    responseText = await llmCall({
+      system: `You are a world-class Conversion Rate Optimization (CRO) copywriter. \nYour task is to rewrite specific text zones on a landing page so they seamlessly align with the user intent driven by an incoming ad campaign. \nReturn ONLY valid JSON according to the requested schema. Provide a rationale string explaining your strategy, then the rewritten text for each zone.`,
+      prompt,
+      format: formatSchema,
+      options: { temperature: 0.6, top_p: 0.9 },
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Ollama responded with ${res.status}: ${errText}`);
-    }
-
-    const data = (await res.json()) as { response?: string };
-    responseText = String(data.response ?? "").trim();
-    log.info(NODE, `Ollama response received in ${elapsed(t)}`, {
+    log.info(NODE, `LLM response received in ${elapsed(t)}`, {
       preview: responseText.slice(0, 200) + (responseText.length > 200 ? "…" : ""),
     });
   } catch (error) {
-    log.warn(NODE, `Ollama request failed — returning zones unchanged: ${(error as Error).message}`);
+    log.warn(NODE, `LLM request failed — returning zones unchanged: ${(error as Error).message}`);
     return { rewrittenZones: zones.map((z) => ({ ...z, new_text: null })) };
   }
 

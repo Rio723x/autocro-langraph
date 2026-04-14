@@ -9,7 +9,7 @@
  * Only one pipeline run at a time is supported. Concurrent requests would
  * need a pool — out of scope for now.
  */
-import puppeteer, { type Browser, type Page } from "puppeteer";
+import puppeteer, { type Browser, type Page } from "puppeteer-core";
 
 import { VIEWPORT } from "./constants";
 import { PipelineError } from "./errors";
@@ -28,14 +28,13 @@ export async function openBrowserContext(pageUrl: string): Promise<void> {
   // Close any stale session left over from a previous run / HMR cycle.
   await closeBrowserContext();
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
+  const apiKey = process.env.BROWSERBASE_API_KEY;
+  if (!apiKey) {
+    throw new PipelineError("BROWSERBASE_API_KEY is not configured", 500);
+  }
+
+  const browser = await puppeteer.connect({
+    browserWSEndpoint: `wss://connect.browserbase.com?apiKey=${apiKey}`,
   });
 
   try {

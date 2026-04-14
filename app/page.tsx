@@ -58,6 +58,7 @@ function ChangeCard({ change }: { change: Change }) {
 
 export default function HomePage() {
   const [adFile, setAdFile] = useState<File | null>(null);
+  const [adInputUrl, setAdInputUrl] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pageUrl, setPageUrl] = useState<string>("");
   const [status, setStatus] = useState<string>("Ready to run.");
@@ -73,6 +74,7 @@ export default function HomePage() {
 
   function applyFile(file: File | null): void {
     setAdFile(file);
+    setAdInputUrl("");
     setResult(null);
     setError("");
     setStatus(file ? "Ad creative attached." : "Ready to run.");
@@ -80,8 +82,29 @@ export default function HomePage() {
     setPreviewUrl(file ? createPreviewUrl(file) : null);
   }
 
+  function applyUrl(url: string): void {
+    setAdInputUrl(url);
+    setAdFile(null);
+    setResult(null);
+    setError("");
+
+    if (!url) {
+      setPreviewUrl(null);
+      setStatus("Ready to analyse.");
+      return;
+    }
+    
+    if (previewUrl && previewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    
+    setPreviewUrl(url);
+    setStatus("Ad creative URL attached.");
+  }
+
   function useSampleAd(): void {
     setAdFile(null);
+    setAdInputUrl("");
     setResult(null);
     setError("");
     if (previewUrl?.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
@@ -103,8 +126,12 @@ export default function HomePage() {
       formData.append("pageUrl", pageUrl.trim());
       if (adFile) {
         formData.append("adFile", adFile);
-      } else {
+      } else if (adInputUrl) {
+        formData.append("adUrl", adInputUrl);
+      } else if (previewUrl === SAMPLE_AD_PATH) {
         formData.append("adUrl", new URL(SAMPLE_AD_PATH, window.location.origin).toString());
+      } else {
+        throw new Error("Please provide an Ad File, an Ad URL, or use the sample ad.");
       }
 
       const response = await fetch("/api/personalise", { method: "POST", body: formData });
@@ -167,7 +194,7 @@ export default function HomePage() {
                   </p>
                 </div>
               )}
-              <div className="dropzone-actions">
+              <div className="dropzone-actions" style={{ flexWrap: "wrap", justifyContent: "center" }}>
                 <span className="ghost-button">Choose file</span>
                 <button
                   className="ghost-button"
@@ -178,6 +205,21 @@ export default function HomePage() {
                 </button>
               </div>
             </label>
+
+            <div style={{ margin: "1rem 0", display: "flex", alignItems: "center", gap: "1rem" }}>
+                <span style={{ flex: 1, borderTop: "1px solid currentColor", opacity: 0.15 }}></span>
+                <span style={{ fontSize: "0.85rem", opacity: 0.5, fontWeight: 500, textTransform: "uppercase" }}>or paste image url</span>
+                <span style={{ flex: 1, borderTop: "1px solid currentColor", opacity: 0.15 }}></span>
+            </div>
+
+            <input
+              className="text-input"
+              id="adUrl"
+              onChange={(event) => applyUrl(event.target.value)}
+              placeholder="https://example.com/ad-image.jpg"
+              type="url"
+              value={adInputUrl}
+            />
           </div>
 
           {/* Page URL */}
