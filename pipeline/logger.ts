@@ -8,7 +8,7 @@
  * (e.g. when piped to a file).
  */
 
-const isTTY = process.stdout.isTTY ?? false;
+const isTTY = typeof process !== "undefined" && process.stdout ? (process.stdout.isTTY ?? false) : false;
 
 const C = {
   reset:  isTTY ? "\x1b[0m"  : "",

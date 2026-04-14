@@ -46,6 +46,7 @@ async function resolveAdFile(formData: FormData): Promise<string> {
 
   const adFile = formData.get("adFile");
   const adUrl = String(formData.get("adUrl") ?? "").trim();
+  console.log("[/api/personalise] Checking ad creative. Has adFile:", !!adFile, "| adUrl:", adUrl);
 
   // ── Uploaded file ──────────────────────────────────────────────────────────
   if (adFile && typeof adFile === "object" && "arrayBuffer" in adFile) {
@@ -66,6 +67,7 @@ async function resolveAdFile(formData: FormData): Promise<string> {
     const buffer = Buffer.from(await file.arrayBuffer());
     const outputPath = getOutputPath(`ad_input${ext}`);
     await fs.writeFile(outputPath, buffer);
+    console.log("[/api/personalise] Saved uploaded ad file to:", outputPath);
     return outputPath;
   }
 
@@ -97,6 +99,7 @@ async function resolveAdFile(formData: FormData): Promise<string> {
     const buffer = Buffer.from(await res.arrayBuffer());
     const outputPath = getOutputPath(`ad_input${ext}`);
     await fs.writeFile(outputPath, buffer);
+    console.log("[/api/personalise] Downloaded ad URL to:", outputPath);
     return outputPath;
   }
 
@@ -104,11 +107,14 @@ async function resolveAdFile(formData: FormData): Promise<string> {
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
+  console.log("[/api/personalise] Received new personalisation request");
   let formData: FormData;
 
   try {
     formData = await req.formData();
-  } catch {
+    console.log("[/api/personalise] Successfully parsed form data");
+  } catch (err) {
+    console.error("[/api/personalise] Form data parsing error:", err);
     return NextResponse.json(
       { error: "Could not parse multipart form data" },
       { status: 400 }
@@ -130,7 +136,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       throw new Error("unsupported protocol");
     }
     pageUrl = parsed.toString();
+    console.log("[/api/personalise] Validated target pageUrl:", pageUrl);
   } catch {
+    console.warn("[/api/personalise] Invalid pageUrl received:", rawPageUrl);
     return NextResponse.json(
       { error: "pageUrl must be a valid http or https URL" },
       { status: 400 }
@@ -140,7 +148,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   let adFilePath: string;
   try {
     adFilePath = await resolveAdFile(formData);
+    console.log("[/api/personalise] Final ad file path resolved:", adFilePath);
   } catch (err) {
+    console.error("[/api/personalise] Failed to process ad creative error:", err);
     if (err instanceof PipelineError) {
       return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
@@ -148,7 +158,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   try {
+    console.log("[/api/personalise] Starting graph execution...");
     const result = await runGraph(pageUrl, adFilePath);
+    console.log("[/api/personalise] Graph execution completed successfully");
     return NextResponse.json(result);
   } catch (err) {
     console.error("[/api/personalise] Pipeline error:", err);
